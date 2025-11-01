@@ -1,0 +1,22 @@
+
+spring:
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+  application:
+    name: split-file
+
+server:
+  port: 8088
+  servlet:
+    context-path: /word2pic
+
+
+comfyui:
+  api:
+    base-url: http://localhost:8188
+    default-timeout: 30000

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8" />
+    <title>ComfyUI 图像生成</title>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        #progressBar {
+            width: 100%;
+            height: 24px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        #progressFill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            text-align: center;
+            line-height: 24px;
+            color: white;
+            transition: width 0.3s ease;
+        }
+        #statusText {
+            font-size: 1.1em;
+            margin: 10px 0;
+        }
+        #resultImage {
+            max-width: 500px;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body class="p-4">
+<div class="container">
+<!--    <input type="text" id="userInput" placeholder="请输入绘画场景" />&nbsp;&nbsp;-->
+    <textarea id="userInput" placeholder="请输入绘画场景" rows="3" style="width: 100%; resize: vertical;"></textarea>
+    <br />
+    <input type="text" id="widthInput" placeholder="请输入图片宽" class="form-control d-inline-block" style="width: auto;" />&nbsp;&nbsp;&nbsp;&nbsp;
+    <input type="text" id="heighInput" placeholder="请输入图片高" class="form-control d-inline-block" style="width: auto;" />&nbsp;&nbsp;&nbsp;&nbsp;
+    <br/><br/>
+    <select id="styleSelect" class="form-control d-inline-block" style="width: auto;">
+        <option value="">请选择样式</option>
+        <option value="origin-qwen-image.json">普通</option>
+        <option value="2">人物</option>
+    </select>
+    <br />
+    <button id="startBtn" class="btn btn-primary">开始生成</button>
+
+    <div id="progressContainer" style="display:none;">
+        <div id="statusText">等待中...</div>
+        <div id="progressBar"><div id="progressFill">0%</div></div>
+    </div>
+
+    <img id="resultImage" alt="生成结果" />
+
+</div>
+
+<script>
+
+    document.getElementById('startBtn').onclick = function() {
+        this.disabled = true;
+        this.innerText = "提交中...";
+        const userInput = document.getElementById('userInput').value.trim();
+        const widthInput = document.getElementById('widthInput').value.trim();
+        const heighInput = document.getElementById('heighInput').value.trim();
+        const styleSelect = document.getElementById('styleSelect').value; // 获取样式选择
+        if (!userInput) {
+            alert("请输入描述内容！");
+            return;
+        }
+        // 清空图片展示区域
+        const resultImage = document.getElementById('resultImage');
+        resultImage.src = '';
+        resultImage.style.display = 'none';
+
+        // 重置进度条为初始状态
+        const progressFill = document.getElementById('progressFill');
+        progressFill.style.width = '0%';
+        progressFill.innerText = '0%';
+        document.getElementById('statusText').innerText = '等待中...';
+
+        // 隐藏进度容器（如果需要）
+        document.getElementById('progressContainer').style.display = 'block'; // 保持显示但内容已重置
+
+
+        fetch('/word2pic/api/image/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                prompt: userInput,  // 添加prompt字段
+                workflowTemplate: styleSelect,
+                width: widthInput,
+                height: heighInput
+            })
+        }).then(res => {
+            if (!res.ok) {
+                throw new Error(`网络响应不正常，状态码: ${res.status}`);
+            }
+            return res.json(); // 直接返回解析的JSON
+        }).then(data => {
+                console.log("响应数据:", data);
+                // 在这里处理返回的数据
+            return data;
+            }).then(data => {
+                const taskId = data.taskId;
+                const clientId = data.clientId;
+                console.log("任务ID:", taskId);
+                console.log("clientID:", clientId);
+
+                // 显示进度区
+                document.getElementById('progressContainer').style.display = 'block';
+
+                // 连接 SSE
+                const eventSource = new EventSource(`/word2pic/api/image/listening?taskId=${taskId}&clientId=${clientId}`);
+            // 处理默认消息（包括ping）
+                eventSource.addEventListener('progress', function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        // 如果是进度数据则处理，否则忽略ping等心跳数据
+                        if (data && typeof data === 'object' && ('status' in data || 'progress' in data)) {
+                            handleProgressData(event);
+                        }
+                        // 忽略ping等心跳数据
+                    } catch (e) {
+                        // 忽略无法解析的数据（如简单的"ping"字符串）
+                        console.error("无法解析的消息:", event.data);
+                    }
+                });
+
+                eventSource.onerror = function(err) {
+                    console.error("SSE 错误", err);
+                    eventSource.close();
+                };
+            })
+            .catch(err => {
+                alert("提交失败: " + err.message);
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('startBtn').innerText = "开始生成";
+            });
+    };
+
+    function handleProgressData(event) {
+        const data = JSON.parse(event.data);
+        document.getElementById('statusText').innerText = data.detail;
+        const taskId = data.taskId;
+        const progressFill = document.getElementById('progressFill');
+        if (data.progress !== null) {
+            progressFill.style.width = data.progress + '%';
+            progressFill.innerText = data.progress + '%';
+        }
+
+        if (data.status === 'SUCCESS') {
+            // 获取图片
+            fetch(`/word2pic/api/image/result/${taskId}`)
+                .then(r => r.json())
+                .then(imgData => {
+                    const img = document.getElementById('resultImage');
+                    img.src = imgData.imageUrl;
+                    img.style.display = 'block';
+                    // 恢复按钮状态
+                    const startBtn = document.getElementById('startBtn');
+                    startBtn.disabled = false;
+                    startBtn.innerText = "开始生成";
+                });
+            eventSource.close();
+        } else if (data.status === 'FAILED') {
+            alert('任务失败: ' + data.detail);
+            eventSource.close();
+        }
+    }
+</script>
+</body>
+</html>
