@@ -21,8 +21,6 @@ import java.util.Map;
 @RequestMapping("/api/image")
 public class ImageController {
     @Autowired
-    private ProgressListenerService progressListener;
-    @Autowired
     private ComfyUIService comfyUIService;
     @Autowired
     private TaskProgressService taskProgressService;

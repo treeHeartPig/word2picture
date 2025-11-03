@@ -211,8 +211,12 @@ public class ComfyUIService {
         if (inputs == null) {
             return;
         }
+        String prompt = request.getPrompt();
+        if(Objects.equals("qwen-3d-IP.json",request.getWorkflowTemplate())){
+            prompt = "3D画面；"+prompt;
+        }
         switch (classType){
-            case "CLIPTextEncode":  inputs.put("text", request.getPrompt());break;
+            case "CLIPTextEncode":  inputs.put("text", prompt);break;
             case "EmptyLatentImage":
                 inputs.put("width",request.getWidth()== null ? 300 : request.getWidth());
                 inputs.put("height",request.getHeight()== null ? 500 : request.getHeight());
