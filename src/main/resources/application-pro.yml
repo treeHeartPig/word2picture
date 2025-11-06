@@ -1,0 +1,14 @@
+
+server:
+  port: 8088
+  servlet:
+    context-path: /word2pic
+
+
+comfyui:
+  api:
+    ip: 127.0.0.1
+    port: 9199
+    base-url: http://${comfyui.api.ip}:${comfyui.api.port}
+    ws-url: ws://${comfyui.api.ip}:${comfyui.api.port}/ws
+    default-timeout: 30000

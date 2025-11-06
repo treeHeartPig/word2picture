@@ -126,7 +126,7 @@
   },
   "16": {
     "inputs": {
-      "lora_name": "Qwen-image国风3D-IP形象_v10.safetensors",
+      "lora_name": "qwen-image/Qwen-image-cartoon15-3D场景人物.safetensors",
       "strength_model": 0.9,
       "strength_clip": 1,
       "model": [

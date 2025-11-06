@@ -6,6 +6,7 @@ import com.zlz.word2picture.word2picture.model.GenerateImageRequest;
 import com.zlz.word2picture.word2picture.model.TaskResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
@@ -32,6 +33,8 @@ public class ComfyUIService {
 
     @Autowired
     private ObjectMapper objectMapper;
+    @Value("${comfyui.api.base-url}")
+    private String baseUrl;
 
     // 用于存储任务状态
     private final Map<String, TaskResponse> taskStatus = new ConcurrentHashMap<>();
@@ -184,20 +187,40 @@ public class ComfyUIService {
     private void updateWorkflowParameters(Map<String, Object> workflow, GenerateImageRequest request) {
         for (Map.Entry<String, Object> entry : workflow.entrySet()) {
             Object node = entry.getValue();
-            //自定义提示词
-            if(Objects.equals(entry.getKey(),"3")){
+            String promoteId = getPromptId(request);
+            String widthId = getWidthId(request);
+            String ksamplerId = getKSamplerId(request);
+            List<String> updateId = Arrays.asList(widthId,ksamplerId,promoteId);
+            //修改seed值/提示词/图片长高
+            if(updateId.contains(entry.getKey())){
                 if (node instanceof Map) {
                     updateNodeParameters((Map<String, Object>) node, request);
                 }
             }
-            //自定义长、高
-            if(Objects.equals(entry.getKey(),"8")){
-                if (node instanceof Map) {
-                    updateNodeParameters((Map<String, Object>) node, request);
-                }
-            }
-
         }
+    }
+
+    private String getKSamplerId(GenerateImageRequest request){
+        String workflowTemplate = request.getWorkflowTemplate();
+        if(Objects.equals("qwen-lora-海报.json",workflowTemplate)){
+            return "5";
+        }
+        return "3";
+    }
+    private String getWidthId(GenerateImageRequest request){
+        String workflowTemplate = request.getWorkflowTemplate();
+        if(Objects.equals("qwen-lora-海报.json",workflowTemplate)){
+            return "8";
+        }
+        return "58";
+    }
+
+    private String getPromptId(GenerateImageRequest request){
+        String workflowTemplate = request.getWorkflowTemplate();
+        if(Objects.equals("qwen-lora-海报.json",workflowTemplate)){
+            return "3";
+        }
+        return "6";
     }
 
     /**
@@ -216,62 +239,14 @@ public class ComfyUIService {
             prompt = "3D画面；"+prompt;
         }
         switch (classType){
+            case "KSampler": inputs.put("seed",System.currentTimeMillis());break;
             case "CLIPTextEncode":  inputs.put("text", prompt);break;
+            case "EmptySD3LatentImage":
             case "EmptyLatentImage":
                 inputs.put("width",request.getWidth()== null ? 300 : request.getWidth());
                 inputs.put("height",request.getHeight()== null ? 500 : request.getHeight());
                 break;
         }
-
-
-//        switch (classType) {
-//            case "CLIPLoader":
-//
-//            case "CLIPTextEncode":
-//                // 更新正向和负向提示词
-//                if (inputs.get("text") != null) {
-//                    String text = (String) inputs.get("text");
-//                    if (text.contains("positive_prompt_placeholder")) {
-//                        inputs.put("text", text.replace("positive_prompt_placeholder", request.getPrompt()));
-//                    } else if (text.contains("negative_prompt_placeholder")) {
-//                        inputs.put("text", text.replace("negative_prompt_placeholder", request.getNegativePrompt()));
-//                    } else {
-//                        // 如果没有占位符，根据节点内容判断是正向还是负向提示词
-//                        // 通常正向提示词节点在前，负向提示词节点连接到KSampler的negative输入
-//                        inputs.put("text", request.getPrompt());
-//                    }
-//                }
-//                break;
-//
-//            case "KSampler":
-//                // 更新采样参数
-//                inputs.put("steps", request.getSteps());
-//                inputs.put("cfg", request.getCfgScale());
-//                inputs.put("sampler_name", request.getSamplerName());
-//                inputs.put("scheduler", request.getScheduler());
-//
-//                if (!request.getSeed().equals(-1)) {
-//                    inputs.put("seed", request.getSeed());
-//                } else {
-//                    inputs.put("seed", (int) (Math.random() * 1000000000));
-//                }
-//                break;
-//
-//            case "EmptyLatentImage":
-//                // 更新图像尺寸
-//                inputs.put("width", request.getWidth());
-//                inputs.put("height", request.getHeight());
-//                break;
-//
-//            case "CheckpointLoaderSimple":
-//                // 这里可以根据需要更新模型名称
-//                // inputs.put("ckpt_name", request.getModel());
-//                break;
-//
-//            default:
-//                // 对于其他节点，可以添加自定义参数更新逻辑
-//                break;
-//        }
     }
 
 
@@ -303,7 +278,8 @@ public class ComfyUIService {
                                 String type = imageInfo.get("type");
 
                                 // 构造预览URL
-                                return String.format("http://localhost:8188/view?filename=%s&subfolder=%s&type=%s",
+                                return String.format("%s/view?filename=%s&subfolder=%s&type=%s",
+                                        baseUrl,
                                         filename,
                                         subfolder != null ? subfolder : "",
                                         type != null ? type : "output");

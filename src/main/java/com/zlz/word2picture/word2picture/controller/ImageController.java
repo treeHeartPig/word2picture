@@ -14,6 +14,7 @@ import reactor.core.publisher.Mono;
 
 import jakarta.validation.Valid;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -27,7 +28,7 @@ public class ImageController {
 
     @PostMapping("/generate")
     public Mono<ResponseEntity<TaskResponse>> generateImage(@Valid @RequestBody GenerateImageRequest request) {
-        log.info("收到图像生成请求: {}", request);
+        log.info("工作流模板: {}", request.getWorkflowTemplate());
 
         return comfyUIService.generateImage(request)
                 .map(taskResponse -> ResponseEntity.ok(taskResponse))
@@ -55,65 +56,12 @@ public class ImageController {
         return errorResponse;
     }
 
-//    @GetMapping("/progress/{clientId}")
-//    public String listenProgress(@PathVariable String clientId) {
-//        AtomicReference<String> result = new AtomicReference<>("");
-//        progressListener.startListening(clientId, message -> {
-//            try {
-//                ObjectMapper mapper = new ObjectMapper();
-//                JsonNode node = mapper.readTree(message);
-//                String type = node.get("type").asText();
-//
-//                switch (type) {
-//                    case "status":
-//                        int remaining = node.get("data").get("status")
-//                                .get("exec_info").get("queue_remaining").asInt();
-//                        System.out.println("[队列] 剩余任务: " + remaining);
-//                        result.set("[队列] 剩余任务: " + remaining);
-//                        break;
-//
-//                    case "progress":
-//                        int value = node.get("data").get("value").asInt();
-//                        int max = node.get("data").get("max").asInt();
-//                        double progress = (double) value / max * 100;
-//                        System.out.println("[进度] " + String.format("%.1f%%", progress));
-//                        result.set("[进度] " + String.format("%.1f%%", progress));
-//                        break;
-//
-//                    case "executing":
-//                        JsonNode data = node.get("data");
-//                        String nodeId = data.get("node").asText(null);
-//                        if (nodeId == null) {
-//                            System.out.println("[完成] 图像生成结束！");
-//                            result.set("[完成] 图像生成结束！");
-//                        } else {
-//                            System.out.println("[执行] 正在处理节点: " + nodeId);
-//                            result.set("[执行] 正在处理节点: " + nodeId);
-//                        }
-//                        break;
-//
-//                    case "execution_start":
-//                        System.out.println("[开始] 执行工作流...");
-//                        result.set("[开始] 执行工作流...");
-//                        break;
-//
-//                    default:
-//                        // 其他类型：executed, execution_cached 等
-//                        break;
-//                }
-//
-//            } catch (Exception e) {
-//                System.err.println("解析消息失败: " + message);
-//                result.set("解析消息失败: " + message);
-//            }
-//        });
-//        return result.get();
-//    }
-
     @GetMapping("/result/{taskId}")
     public ResponseEntity<?> getResult(@PathVariable String taskId) {
         String imagePreviewUrl = comfyUIService.getImagePreviewUrl(taskId);
         System.out.println("----imageurl:"+imagePreviewUrl);
-        return ResponseEntity.ok(Map.of("imageUrl", imagePreviewUrl));
+        Map<String,String> map = new HashMap<>();
+        map.put("imageUrl", imagePreviewUrl);
+        return ResponseEntity.ok(map);
     }
 }

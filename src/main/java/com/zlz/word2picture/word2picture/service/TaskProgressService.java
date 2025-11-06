@@ -4,7 +4,9 @@ package com.zlz.word2picture.word2picture.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zlz.word2picture.word2picture.model.TaskProgress;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
@@ -20,6 +22,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.*;
 
+@Slf4j
 @Service
 public class TaskProgressService {
 
@@ -29,6 +32,8 @@ public class TaskProgressService {
 
     // 存储每个 taskId 对应的 SseEmitter
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
+    @Value("${comfyui.api.ws-url}")
+    private String wsBaseUrl;
 
     // 使用 Flux + Sink 实现广播
     private final Flux<TaskProgress> progressFlux;
@@ -58,7 +63,8 @@ public class TaskProgressService {
         Runnable heartbeat = () -> {
             try {
                 emitter.send(SseEmitter.event().data("ping"));
-            } catch (IOException e) {
+            } catch (Exception e) {
+                log.error("Error ping sending heartbeat: {}", e.getMessage());
                 emitter.completeWithError(e);
             }
         };
@@ -69,10 +75,12 @@ public class TaskProgressService {
         // 当连接完成、超时、出错时，取消心跳
         emitter.onCompletion(() -> timeoutCallback.cancel(true));
         emitter.onTimeout(() -> {
+            log.error("Timeout for clientId: {}", taskId);
             emitter.complete();
             timeoutCallback.cancel(true);
         });
         emitter.onError(e -> {
+            log.error("Error for clientId: {}", taskId, e);
             emitter.completeWithError(e);
             timeoutCallback.cancel(true);
         });
@@ -94,20 +102,16 @@ public class TaskProgressService {
                 emitter.send(SseEmitter.event()
                         .name("progress")
                         .data(update));
-            } catch (IOException e) {
+            } catch (Exception e) {
+                log.error("Error sending progress update", e);
                 emitter.completeWithError(e);
                 emitters.remove(taskId);
             }
         }
     }
-
-    // 获取进度流（可用于其他用途）
-    public Flux<TaskProgress> getProgressFlux() {
-        return progressFlux;
-    }
     public void startListening(String clientId, String taskId) {
         clientTaskMap.put(clientId, taskId); // 映射 clientId -> taskId
-        String url = "ws://localhost:8188/ws?clientId=" + clientId;
+        String url = String.format("%s?clientId=%s",wsBaseUrl,clientId);
         webSocketClient.execute(URI.create(url), session -> {
             String currentTaskId = clientTaskMap.get(clientId);
             return session.receive()
@@ -150,6 +154,7 @@ public class TaskProgressService {
                                     break;
                             }
                         } catch (Exception e) {
+                            log.error("Error parsing message ", e);
                             this.broadcastProgress(currentTaskId, "FAILED", null, "解析错误: " + e.getMessage());
                         }
                     })

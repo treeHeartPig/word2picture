@@ -39,12 +39,17 @@
 <!--    <input type="text" id="userInput" placeholder="请输入绘画场景" />&nbsp;&nbsp;-->
     <textarea id="userInput" placeholder="请输入绘画场景" rows="3" style="width: 100%; resize: vertical;"></textarea>
     <br />
-    <input type="text" id="widthInput" placeholder="请输入图片宽" class="form-control d-inline-block" style="width: auto;" />&nbsp;&nbsp;&nbsp;&nbsp;
-    <input type="text" id="heighInput" placeholder="请输入图片高" class="form-control d-inline-block" style="width: auto;" />&nbsp;&nbsp;&nbsp;&nbsp;
-    <br/><br/>
+
+    <select id="ratioSelect" class="form-control d-inline-block" style="width: auto;">
+        <option value="">请选择比例</option>
+        <option value="1:1">1:1</option>
+        <option value="3:2">3:2</option>
+        <option value="3:4">3:4</option>
+        <option value="16:9">16:9</option>
+    </select> <br/><br/>
     <select id="styleSelect" class="form-control d-inline-block" style="width: auto;">
         <option value="">请选择样式</option>
-        <option value="origin-qwen-image.json">普通</option>
+        <option value="qwen-lora-海报.json">普通</option>
         <option value="qwen-3d-IP.json">3D</option>
     </select>
     <br />
@@ -62,11 +67,33 @@
 <script>
 
     document.getElementById('startBtn').onclick = function() {
-        this.disabled = true;
-        this.innerText = "提交中...";
         const userInput = document.getElementById('userInput').value.trim();
-        const widthInput = document.getElementById('widthInput').value.trim();
-        const heighInput = document.getElementById('heighInput').value.trim();
+        const ratioSelect = document.getElementById('ratioSelect').value;
+        let width, height;
+
+        // 根据选择的比例设置宽高
+        switch(ratioSelect) {
+            case '1:1':
+                width = 512;
+                height = 512;
+                break;
+            case '3:2':
+                width = 512;
+                height = 400;
+                break;
+            case '3:4':
+                width = 512;
+                height = 683;
+                break;
+            case '16:9':
+                width = 683;
+                height = 384;
+                break;
+            default:
+                alert("请选择图片比例！");
+                return;
+        }
+
         const styleSelect = document.getElementById('styleSelect').value; // 获取样式选择
         if (!userInput) {
             alert("请输入描述内容！");
@@ -95,8 +122,8 @@
             body: JSON.stringify({
                 prompt: userInput,  // 添加prompt字段
                 workflowTemplate: styleSelect,
-                width: widthInput,
-                height: heighInput
+                width: width,
+                height: height
             })
         }).then(res => {
             if (!res.ok) {
