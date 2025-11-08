@@ -12,3 +12,9 @@ comfyui:
     base-url: http://${comfyui.api.ip}:${comfyui.api.port}
     ws-url: ws://${comfyui.api.ip}:${comfyui.api.port}/ws
     default-timeout: 30000
+
+minio:
+  url: http://8.159.134.73:9000
+  access: admin
+  secret: admin123
+  bucket: ai-test
