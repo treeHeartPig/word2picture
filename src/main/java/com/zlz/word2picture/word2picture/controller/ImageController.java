@@ -4,11 +4,13 @@ import com.zlz.word2picture.word2picture.model.GenerateImageRequest;
 import com.zlz.word2picture.word2picture.model.TaskResponse;
 import com.zlz.word2picture.word2picture.service.ComfyUIService;
 import com.zlz.word2picture.word2picture.service.TaskProgressService;
+import com.zlz.word2picture.word2picture.util.MinioUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Mono;
 
@@ -25,6 +27,8 @@ public class ImageController {
     private ComfyUIService comfyUIService;
     @Autowired
     private TaskProgressService taskProgressService;
+    @Autowired
+    private MinioUtil minioUtil;
 
     @PostMapping("/generate")
     public Mono<ResponseEntity<TaskResponse>> generateImage(@Valid @RequestBody GenerateImageRequest request) {
@@ -63,5 +67,19 @@ public class ImageController {
         Map<String,String> map = new HashMap<>();
         map.put("imageUrl", imagePreviewUrl);
         return ResponseEntity.ok(map);
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity<?> uploadImage(@RequestParam("file") MultipartFile file) {
+        try {
+            // 保存文件到MinIO
+            String fileName = minioUtil.uploadToMinio(file.getBytes(), file.getOriginalFilename(), file.getContentType());
+
+            var url = minioUtil.getFileUrl(fileName);
+
+            return ResponseEntity.ok(url);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("上传失败: " + e.getMessage());
+        }
     }
 }

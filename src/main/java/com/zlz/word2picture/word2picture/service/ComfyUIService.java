@@ -1,6 +1,7 @@
 package com.zlz.word2picture.word2picture.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zlz.word2picture.word2picture.model.GenerateImageRequest;
 import com.zlz.word2picture.word2picture.model.TaskResponse;
@@ -17,6 +18,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -43,9 +45,15 @@ public class ComfyUIService {
         try {
             // 从resources目录加载工作流模板
             Map<String, Object> workflow = loadWorkflowFromResource(request.getWorkflowTemplate());
-
+            if(request.getImageUrl() != null){
+                URL url = new URL(request.getImageUrl());
+                File file = new File(url.toURI());
+                String imageName = uploadImage(file);
+                request.setImageName(imageName);
+            }
             // 动态替换工作流中的参数
             updateWorkflowParameters(workflow, request);
+
 
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
@@ -190,7 +198,8 @@ public class ComfyUIService {
             String promoteId = getPromptId(request);
             String widthId = getWidthId(request);
             String ksamplerId = getKSamplerId(request);
-            List<String> updateId = Arrays.asList(widthId,ksamplerId,promoteId);
+            String loadImageId = getLoadImage(request);
+            List<String> updateId = Arrays.asList(widthId,ksamplerId,promoteId,loadImageId);
             //修改seed值/提示词/图片长高
             if(updateId.contains(entry.getKey())){
                 if (node instanceof Map) {
@@ -202,15 +211,26 @@ public class ComfyUIService {
 
     private String getKSamplerId(GenerateImageRequest request){
         String workflowTemplate = request.getWorkflowTemplate();
-        if(Objects.equals("qwen-lora-海报.json",workflowTemplate)){
+        if(Objects.equals("qwen-lora-海报.json",workflowTemplate) ||
+                Objects.equals("qwen-image-edit.json",workflowTemplate)){
             return "5";
         }
         return "3";
+    }
+    private String getLoadImage(GenerateImageRequest request){
+        String workflowTemplate = request.getWorkflowTemplate();
+        if(Objects.equals("qwen-image-edit.json",workflowTemplate)){
+            return "17";
+        }
+        return null;
     }
     private String getWidthId(GenerateImageRequest request){
         String workflowTemplate = request.getWorkflowTemplate();
         if(Objects.equals("qwen-lora-海报.json",workflowTemplate)){
             return "8";
+        }
+        if(Objects.equals("qwen-image-edit.json",workflowTemplate)){
+            return null;
         }
         return "58";
     }
@@ -219,6 +239,9 @@ public class ComfyUIService {
         String workflowTemplate = request.getWorkflowTemplate();
         if(Objects.equals("qwen-lora-海报.json",workflowTemplate)){
             return "3";
+        }
+        if(Objects.equals("qwen-image-edit.json",workflowTemplate)){
+            return "17";
         }
         return "6";
     }
@@ -241,6 +264,10 @@ public class ComfyUIService {
         switch (classType){
             case "KSampler": inputs.put("seed",System.currentTimeMillis());break;
             case "CLIPTextEncode":  inputs.put("text", prompt);break;
+            case "TextEncodeQwenImageEdit": inputs.put("text", prompt);break;
+            case "LoadImage":
+                inputs.put("image", request.getImageName());
+                break;
             case "EmptySD3LatentImage":
             case "EmptyLatentImage":
                 inputs.put("width",request.getWidth()== null ? 300 : request.getWidth());
@@ -295,4 +322,15 @@ public class ComfyUIService {
         }
     }
 
+    // 上传图像到 ComfyUI /upload/image
+    private String uploadImage(File imageFile) throws Exception {
+        Mono<String> responseMono = comfyUIWebClient.post()
+                .uri("/upload/image")
+                .body(BodyInserters.fromMultipartData("image", imageFile.toPath()))
+                .retrieve()
+                .bodyToMono(String.class);
+
+        String responseBody = responseMono.block();
+        return responseBody;
+    }
 }
