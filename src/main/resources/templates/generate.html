@@ -39,21 +39,23 @@
 <!--    <input type="text" id="userInput" placeholder="请输入绘画场景" />&nbsp;&nbsp;-->
     <textarea id="userInput" placeholder="请输入绘画场景" rows="3" style="width: 100%; resize: vertical;"></textarea>
     <br />
+
+    <select id="styleSelect" class="form-control d-inline-block" style="width: auto;">
+        <option value="">请选择样式</option>
+        <option value="qwen-lora-海报.json">普通</option>
+        <option value="qwen-3d-IP.json">3D</option>
+        <option value="qwen-image-edit.json">图生图</option>
+    </select>
+    <br />
+
     <!-- 在现有控件后添加上传控件 -->
-    <div class="mt-3">
+    <div class="mt-3" id="uploadContainer" style="display: none;">
         <label for="imageUpload" class="form-label">上传参考图片</label>
         <input type="file" id="imageUpload" class="form-control" accept="image/*" />
         <button id="uploadBtn" class="btn btn-secondary mt-2">上传图片</button>
         <div id="uploadStatus" class="mt-2" style="display:none;"></div>
     </div>
 
-    <select id="ratioSelect" class="form-control d-inline-block" style="width: auto;">
-        <option value="">请选择比例</option>
-        <option value="1:1">1:1</option>
-        <option value="3:2">3:2</option>
-        <option value="3:4">3:4</option>
-        <option value="16:9">16:9</option>
-    </select> <br/><br/>
     <div class="mt-3">
         <label class="form-label">自定义尺寸（优先级高于比例选择）</label>
         <div class="row">
@@ -66,13 +68,16 @@
         </div>
     </div>
     <br/></br>
-    <select id="styleSelect" class="form-control d-inline-block" style="width: auto;">
-        <option value="">请选择样式</option>
-        <option value="qwen-lora-海报.json">普通</option>
-        <option value="qwen-3d-IP.json">3D</option>
-        <option value="qwen-image-edit.json">图生图</option>
+
+    <label class="form-label">比例选择</label></br>
+    <select id="ratioSelect" class="form-control d-inline-block" style="width: auto;">
+        <option value="">请选择比例</option>
+        <option value="1:1">1:1</option>
+        <option value="3:2">3:2</option>
+        <option value="3:4">3:4</option>
+        <option value="16:9">16:9</option>
     </select>
-    <br />
+    <br/><br/>
     <button id="startBtn" class="btn btn-primary">开始生成</button>
 
     <div id="progressContainer" style="display:none;">
@@ -88,7 +93,20 @@
     let uploadedImageUrl = null; // 存储上传的图片 URL
     const customWidth = document.getElementById('customWidth').value;
     const customHeight = document.getElementById('customHeight').value;
-
+    // 在 script 部分添加样式选择变化的监听器
+    document.getElementById('styleSelect').addEventListener('change', function() {
+        const uploadContainer = document.getElementById('uploadContainer');
+        // 当选择"图生图"时显示上传控件
+        if (this.value === 'qwen-image-edit.json') {
+            uploadContainer.style.display = 'block';
+        } else {
+            uploadContainer.style.display = 'none';
+            // 清除已上传的图片URL
+            uploadedImageUrl = null;
+            document.getElementById('uploadStatus').style.display = 'none';
+            document.getElementById('imageUpload').value = '';
+        }
+    });
     let width, height;
     document.getElementById('startBtn').onclick = function() {
         const userInput = document.getElementById('userInput').value.trim();
