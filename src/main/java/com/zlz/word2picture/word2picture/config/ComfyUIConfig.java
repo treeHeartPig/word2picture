@@ -1,6 +1,7 @@
 package com.zlz.word2picture.word2picture.config;
 
 import io.minio.MinioClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +14,8 @@ public class ComfyUIConfig {
 
     @Value("${comfyui.api.base-url}")
     private String baseUrl;
-
+    @Autowired
+    private MinioConfig minioConfig;
     @Bean
     public WebClient comfyUIWebClient() {
         return WebClient.builder()
@@ -24,8 +26,8 @@ public class ComfyUIConfig {
     @Bean
     public MinioClient getMinioClient(){
         return MinioClient.builder()
-                .endpoint(MINIO_URL)
-                .credentials(MINIO_ADMIN, MINIO_PWD)
+                .endpoint(minioConfig.getMinioUrl())
+                .credentials(minioConfig.getAccess(), minioConfig.getSecret())
                 .build();
     }
 }

@@ -3,6 +3,7 @@ package com.zlz.word2picture.word2picture.config;
 import io.minio.BucketExistsArgs;
 import io.minio.MinioClient;
 import io.minio.errors.*;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 
 @Slf4j
 @Configuration
+@Data
 public class MinioConfig {
     @Value("${minio.url}")
     private String minioUrl;
