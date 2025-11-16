@@ -1,5 +1,6 @@
 package com.zlz.word2picture.word2picture.service;
 
+import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -18,6 +20,8 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,13 +45,37 @@ public class ComfyUIService {
     // 用于存储任务状态
     private final Map<String, TaskResponse> taskStatus = new ConcurrentHashMap<>();
 
+    public static File downloadImageAsFile(String imageUrl) throws Exception{
+        URL url = new URL(imageUrl);
+        try(InputStream in = url.openStream()){
+            File tempFile = File.createTempFile("image-", ".png");
+            tempFile.deleteOnExit();
+
+            String fileSuffix = imageUrl.contains(".")?
+                    imageUrl.split("\\.")[imageUrl.split("\\.").length-1]
+                    : "png";
+            //将远程图片写入临时文件
+            BufferedImage originalImage = ImageIO.read(in);
+            if(originalImage == null){
+                throw new IOException("无法读取远程图像，文件可能非有效图像格式");
+            }
+            String formatName = "png";
+            for(String type : ImageIO.getReaderFormatNames()){
+                if(type.equalsIgnoreCase(fileSuffix)){
+                    formatName = type;break;
+                }
+
+            }
+            ImageIO.write(originalImage, formatName, tempFile);
+            return tempFile;
+        }
+    }
     public Mono<TaskResponse> generateImage(GenerateImageRequest request) {
         try {
             // 从resources目录加载工作流模板
             Map<String, Object> workflow = loadWorkflowFromResource(request.getWorkflowTemplate());
             if(request.getImageUrl() != null){
-                URL url = new URL(request.getImageUrl());
-                File file = new File(url.toURI());
+                File file = downloadImageAsFile(request.getImageUrl());
                 String imageName = uploadImage(file);
                 request.setImageName(imageName);
             }
@@ -211,39 +239,45 @@ public class ComfyUIService {
 
     private String getKSamplerId(GenerateImageRequest request){
         String workflowTemplate = request.getWorkflowTemplate();
-        if(Objects.equals("qwen-lora-海报.json",workflowTemplate) ||
-                Objects.equals("qwen-image-edit.json",workflowTemplate)){
+        if(Objects.equals("qwen-image-edit-pro.json",workflowTemplate) ||
+                Objects.equals("qwen-3d-IP.json",workflowTemplate)){
             return "5";
         }
-        return "3";
+        if(Objects.equals("qwen-image-pro.json",workflowTemplate)){
+            return "3";
+        }
+        return null;
     }
     private String getLoadImage(GenerateImageRequest request){
         String workflowTemplate = request.getWorkflowTemplate();
-        if(Objects.equals("qwen-image-edit.json",workflowTemplate)){
-            return "17";
+        if(Objects.equals("qwen-image-edit-pro.json",workflowTemplate)){
+            return "18";
         }
         return null;
     }
     private String getWidthId(GenerateImageRequest request){
         String workflowTemplate = request.getWorkflowTemplate();
-        if(Objects.equals("qwen-lora-海报.json",workflowTemplate)){
+        if(Objects.equals("qwen-image-pro.json",workflowTemplate)){
+            return "58";
+        }
+        if(Objects.equals("qwen-3d-IP.json.json",workflowTemplate)){
             return "8";
         }
-        if(Objects.equals("qwen-image-edit.json",workflowTemplate)){
-            return null;
-        }
-        return "58";
+        return null;
     }
 
     private String getPromptId(GenerateImageRequest request){
         String workflowTemplate = request.getWorkflowTemplate();
-        if(Objects.equals("qwen-lora-海报.json",workflowTemplate)){
+        if(Objects.equals("qwen-image-pro.json",workflowTemplate)){
+            return "6";
+        }
+        if(Objects.equals("qwen-3d-IP.json",workflowTemplate)){
             return "3";
         }
-        if(Objects.equals("qwen-image-edit.json",workflowTemplate)){
+        if(Objects.equals("qwen-image-edit-pro.json",workflowTemplate)){
             return "17";
         }
-        return "6";
+        return null;
     }
 
     /**
@@ -264,7 +298,7 @@ public class ComfyUIService {
         switch (classType){
             case "KSampler": inputs.put("seed",System.currentTimeMillis());break;
             case "CLIPTextEncode":  inputs.put("text", prompt);break;
-            case "TextEncodeQwenImageEdit": inputs.put("text", prompt);break;
+            case "TextEncodeQwenImageEdit": inputs.put("prompt", prompt);break;
             case "LoadImage":
                 inputs.put("image", request.getImageName());
                 break;
@@ -324,13 +358,15 @@ public class ComfyUIService {
 
     // 上传图像到 ComfyUI /upload/image
     private String uploadImage(File imageFile) throws Exception {
+        FileSystemResource resource = new FileSystemResource(imageFile);
         Mono<String> responseMono = comfyUIWebClient.post()
                 .uri("/upload/image")
-                .body(BodyInserters.fromMultipartData("image", imageFile.toPath()))
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(BodyInserters.fromMultipartData("image", resource))
                 .retrieve()
                 .bodyToMono(String.class);
 
         String responseBody = responseMono.block();
-        return responseBody;
+        return JSONObject.parseObject(responseBody).getString("name");
     }
 }

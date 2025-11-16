@@ -29,7 +29,7 @@ public class GenerateImageRequest {
     private Integer seed = -1;
 
     @NotBlank(message = "工作流不能为空")
-    private String workflowTemplate = "qwen-lora-海报.json";
+    private String workflowTemplate = "qwen-image-pro.json";
 
     private String imageUrl;
     private String imageName;
